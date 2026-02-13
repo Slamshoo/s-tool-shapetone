@@ -39,7 +39,8 @@ export default function App() {
 
     (async () => {
       try {
-        const res = await fetch('/earth-loop.mp4');
+        const base = import.meta.env.BASE_URL || '/';
+        const res = await fetch(`${base}earth-loop.mp4`);
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         await preloadVideo(url);
