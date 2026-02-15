@@ -2,6 +2,10 @@
 
 Real-time shape mosaic renderer that transforms images, videos, GIFs and 3D objects into halftone-style compositions using geometric shapes.
 
+https://github.com/user-attachments/assets/72bbc47c-454e-4a4e-8a4b-df4ac6590b98
+
+
+
 ## Features
 
 - **Multiple shape types** — circles, squares, triangles, any unicode character, custom SVG
