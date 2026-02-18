@@ -63,6 +63,8 @@ function fitCameraToMesh(mesh: THREE.Mesh): void {
   const dist = (maxDim / 2) / Math.tan(fov / 2) * 1.5;
 
   camera.position.set(0, 0, dist);
+  camera.near = dist * 0.01;
+  camera.far = dist * 10;
   camera.lookAt(0, 0, 0);
   camera.updateProjectionMatrix();
 }
