@@ -1,7 +1,34 @@
+import { useState, useEffect } from 'react';
 import type { AppState, ShapeType, GridSettings, BrightnessMapping, ColorSettings, MediaType, MediaTransform, Obj3dSettings } from '../types';
 import { COLOR_PRESETS } from '../utils/colorPresets';
 import ImageUploadZone from './ImageUploadZone';
 import ShapeSelector from './ShapeSelector';
+
+function HexInput({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+  const [raw, setRaw] = useState(value.replace('#', ''));
+
+  useEffect(() => {
+    setRaw(value.replace('#', ''));
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
+    setRaw(v);
+    if (v.length === 3 || v.length === 6) onChange('#' + v);
+  };
+
+  return (
+    <input
+      type="text"
+      value={raw}
+      onChange={handleChange}
+      placeholder="000000"
+      maxLength={6}
+      spellCheck={false}
+      className="w-full bg-transparent border-t border-white/10 text-white/60 text-[10px] text-center font-mono px-1 py-1 focus:outline-none focus:text-white/90 hover:text-white/80 transition-colors"
+    />
+  );
+}
 
 interface SidebarProps {
   state: AppState;
@@ -17,6 +44,10 @@ interface SidebarProps {
   onObj3dChange: (obj3d: Obj3dSettings) => void;
   onDownloadPng: () => void;
   onDownloadSvg: () => void;
+  onDownloadHtml: () => void;
+  htmlExportProgress: number | null;
+  onToggleRecording: () => void;
+  isRecording: boolean;
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -79,7 +110,7 @@ export default function Sidebar(props: SidebarProps) {
   };
 
   const resetMediaTransform = () => {
-    props.onMediaTransformChange({ scale: 1, offsetX: 0, offsetY: 0 });
+    props.onMediaTransformChange({ scale: 1, offsetX: 0, offsetY: 0, rotation: 0 });
   };
 
   return (
@@ -205,8 +236,10 @@ export default function Sidebar(props: SidebarProps) {
             onChange={v => props.onMediaTransformChange({ ...mediaTransform, scale: v })}
             format={v => `${(v * 100).toFixed(0)}%`}
           />
-          <div className="text-white/30 text-[10px] leading-relaxed">
-            Cmd+Scroll: scale media | Cmd+Drag: move media
+          <div className="text-white/30 text-[10px] leading-relaxed space-y-0.5">
+            <div>Scale — Cmd+Scroll</div>
+            <div>Move — Cmd+Drag</div>
+            <div>Rotate — Ctrl+Drag · +Shift snaps 45°</div>
           </div>
         </div>
 
@@ -248,25 +281,31 @@ export default function Sidebar(props: SidebarProps) {
           <div className="flex gap-2">
             <div className="flex-1 space-y-1">
               <span className="text-white/50 text-[10px]">Foreground</span>
-              <label className="block relative w-full h-8 rounded-lg cursor-pointer border border-white/10 overflow-hidden" style={{ backgroundColor: colors.foreground }}>
-                <input
-                  type="color"
-                  value={colors.foreground}
-                  onChange={e => props.onColorsChange({ ...colors, foreground: e.target.value })}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-              </label>
+              <div className="rounded-lg border border-white/10 overflow-hidden">
+                <label className="block relative w-full h-7 cursor-pointer" style={{ backgroundColor: colors.foreground }}>
+                  <input
+                    type="color"
+                    value={colors.foreground}
+                    onChange={e => props.onColorsChange({ ...colors, foreground: e.target.value })}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </label>
+                <HexInput value={colors.foreground} onChange={v => props.onColorsChange({ ...colors, foreground: v })} />
+              </div>
             </div>
             <div className="flex-1 space-y-1">
               <span className="text-white/50 text-[10px]">Background</span>
-              <label className="block relative w-full h-8 rounded-lg cursor-pointer border border-white/10 overflow-hidden" style={{ backgroundColor: colors.background }}>
-                <input
-                  type="color"
-                  value={colors.background}
-                  onChange={e => props.onColorsChange({ ...colors, background: e.target.value })}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-              </label>
+              <div className="rounded-lg border border-white/10 overflow-hidden">
+                <label className="block relative w-full h-7 cursor-pointer" style={{ backgroundColor: colors.background }}>
+                  <input
+                    type="color"
+                    value={colors.background}
+                    onChange={e => props.onColorsChange({ ...colors, background: e.target.value })}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </label>
+                <HexInput value={colors.background} onChange={v => props.onColorsChange({ ...colors, background: v })} />
+              </div>
             </div>
           </div>
           <div className="space-y-1.5">
@@ -292,7 +331,7 @@ export default function Sidebar(props: SidebarProps) {
         {/* Export */}
         <div className="px-4 py-3 border-b border-white/10">
           <SectionLabel>Export</SectionLabel>
-          <div className="flex gap-2">
+          <div className="flex gap-2 mb-2">
             <button
               onClick={props.onDownloadPng}
               className="flex-1 px-2 py-1.5 bg-zinc-800 text-white/70 text-[10px] rounded-lg border border-white/10 hover:bg-zinc-700 transition-colors"
@@ -306,12 +345,34 @@ export default function Sidebar(props: SidebarProps) {
               SVG
             </button>
             <button
-              disabled
-              className="flex-1 px-2 py-1.5 bg-zinc-900 text-white/25 text-[10px] rounded-lg border border-white/5 cursor-not-allowed"
+              onClick={props.onToggleRecording}
+              className={`flex-1 px-2 py-1.5 text-[10px] rounded-lg border transition-colors ${
+                props.isRecording
+                  ? 'bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30 animate-pulse'
+                  : 'bg-zinc-800 text-white/70 border-white/10 hover:bg-zinc-700'
+              }`}
             >
-              MP4 <span className="text-[8px]">(SOON)</span>
+              {props.isRecording ? '■ STOP' : 'WEBM'}
             </button>
           </div>
+          <button
+            onClick={props.onDownloadHtml}
+            disabled={props.htmlExportProgress !== null}
+            className="relative w-full px-2 py-2 bg-white/10 text-white/80 text-[10px] rounded-lg border border-white/20 hover:bg-white/15 transition-colors overflow-hidden disabled:cursor-wait"
+            title="Self-contained HTML — opens in any browser, crisp canvas animation"
+          >
+            {props.htmlExportProgress !== null && (
+              <span
+                className="absolute inset-y-0 left-0 bg-white/10 transition-all duration-100"
+                style={{ width: `${Math.round(props.htmlExportProgress * 100)}%` }}
+              />
+            )}
+            <span className="relative">
+              {props.htmlExportProgress !== null
+                ? `Compressing… ${Math.round(props.htmlExportProgress * 100)}%`
+                : 'HTML · canvas loop'}
+            </span>
+          </button>
         </div>
 
         {/* Footer */}

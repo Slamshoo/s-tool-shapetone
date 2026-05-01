@@ -223,7 +223,7 @@ export function computeBrightnessGrid(
   }
 
   // Apply mediaTransform: scale the draw area and offset it
-  const mt = mediaTransform || { scale: 1, offsetX: 0, offsetY: 0 };
+  const mt = mediaTransform || { scale: 1, offsetX: 0, offsetY: 0, rotation: 0 };
   const scaledDrawW = drawW * mt.scale;
   const scaledDrawH = drawH * mt.scale;
   // Center the scaled version, then apply offset
@@ -242,6 +242,13 @@ export function computeBrightnessGrid(
   const scaleX = mediaW / scaledDrawW;
   const scaleY = mediaH / scaledDrawH;
 
+  // Rotation: rotate viewport point around draw-area center before mapping to media
+  const rotation = mt.rotation ?? 0;
+  const cosR = Math.cos(-rotation);
+  const sinR = Math.sin(-rotation);
+  const drawCenterX = finalOffsetX + scaledDrawW / 2;
+  const drawCenterY = finalOffsetY + scaledDrawH / 2;
+
   const cols = Math.ceil(canvasWidth / spacing);
   const rows = Math.ceil(canvasHeight / spacing);
   const grid = getGridBuffer(cols * rows);
@@ -251,9 +258,15 @@ export function computeBrightnessGrid(
       const vx = col * spacing + spacing * 0.5;
       const vy = row * spacing + spacing * 0.5;
 
-      // Map viewport coords -> media coords using the transformed draw area
-      const mx = ((vx - finalOffsetX) * scaleX) | 0;
-      const my = ((vy - finalOffsetY) * scaleY) | 0;
+      // Rotate viewport point around draw-area center (inverse rotation to find source pixel)
+      const dx = vx - drawCenterX;
+      const dy = vy - drawCenterY;
+      const rvx = dx * cosR - dy * sinR + drawCenterX;
+      const rvy = dx * sinR + dy * cosR + drawCenterY;
+
+      // Map rotated viewport coords -> media coords
+      const mx = ((rvx - finalOffsetX) * scaleX) | 0;
+      const my = ((rvy - finalOffsetY) * scaleY) | 0;
 
       if (mx < 0 || mx >= mediaW || my < 0 || my >= mediaH) {
         grid[row * cols + col] = bgBrightness;

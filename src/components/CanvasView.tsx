@@ -86,9 +86,18 @@ export default function CanvasView({ state, canvasRef: externalRef, rendererRef:
     // Cmd+B+drag = 3D rotation, Cmd+drag = media pan, normal drag = view pan
     let isPanning = false;
     let isMediaPanning = false;
+    let isMediaRotating = false;
     let is3dRotating = false;
     let lastX = 0;
     let lastY = 0;
+    // For rotation: track angle from canvas center to mouse
+    let rotateStartAngle = 0;
+    let rotateStartRotation = 0;
+
+    const getCanvasCenter = () => {
+      const rect = canvas.getBoundingClientRect();
+      return { cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2 };
+    };
 
     const handleMouseDown = (e: MouseEvent) => {
       lastX = e.clientX;
@@ -97,6 +106,12 @@ export default function CanvasView({ state, canvasRef: externalRef, rendererRef:
       if (e.metaKey && bKeyDown && stateRef.current.mediaType === 'obj3d') {
         is3dRotating = true;
         canvas.style.cursor = 'crosshair';
+      } else if (e.ctrlKey) {
+        isMediaRotating = true;
+        canvas.style.cursor = 'crosshair';
+        const { cx, cy } = getCanvasCenter();
+        rotateStartAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
+        rotateStartRotation = stateRef.current.mediaTransform.rotation ?? 0;
       } else if (e.metaKey) {
         isMediaPanning = true;
         canvas.style.cursor = 'move';
@@ -113,12 +128,27 @@ export default function CanvasView({ state, canvasRef: externalRef, rendererRef:
       lastY = e.clientY;
 
       if (is3dRotating) {
-        // Cmd+B+drag: rotate the 3D object manually
         const { obj3d } = stateRef.current;
         onObj3dChangeRef.current({
           ...obj3d,
           rotationY: obj3d.rotationY + dx * 0.01,
           rotationX: obj3d.rotationX + dy * 0.01,
+        });
+      } else if (isMediaRotating) {
+        const { cx, cy } = getCanvasCenter();
+        const currentAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
+        let delta = currentAngle - rotateStartAngle;
+
+        // Shift: snap to nearest 45°
+        if (e.shiftKey) {
+          const SNAP = Math.PI / 4;
+          delta = Math.round((rotateStartRotation + delta) / SNAP) * SNAP - rotateStartRotation;
+        }
+
+        const { mediaTransform } = stateRef.current;
+        onMediaTransformChangeRef.current({
+          ...mediaTransform,
+          rotation: rotateStartRotation + delta,
         });
       } else if (isMediaPanning) {
         const { mediaTransform } = stateRef.current;
@@ -140,6 +170,7 @@ export default function CanvasView({ state, canvasRef: externalRef, rendererRef:
     const handleMouseUp = () => {
       isPanning = false;
       isMediaPanning = false;
+      isMediaRotating = false;
       is3dRotating = false;
       canvas.style.cursor = 'grab';
     };

@@ -30,6 +30,7 @@ export interface MediaTransform {
   scale: number;       // 1.0 = original size, >1 = bigger object
   offsetX: number;     // media offset X within viewport
   offsetY: number;     // media offset Y within viewport
+  rotation: number;    // radians, clockwise
 }
 
 export interface Obj3dSettings {
@@ -82,6 +83,7 @@ export const DEFAULT_STATE: AppState = {
     scale: 1,
     offsetX: 0,
     offsetY: 0,
+    rotation: 0,
   },
   obj3d: {
     autoRotate: true,
